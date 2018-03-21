@@ -1,38 +1,73 @@
 #!  /usr/bin/bash
+
+
+# TODO: insert guardian ascii art
+
+
+
+
+# TODO: figure out how to properly use systemd units
 ## help cronie out a little
-PATH=$PATH:/home/chris/bin/scripts:/home/chris/bin/scripts/bat/batteryguard
+#PATH=$PATH:/home/chris/bin/scripts/bat/batteryguard
 
 echo Batteryguard has your back
 
 BAT_THRESHOLD=15
-SLEEP_TIME=2
+DELAY=2
+SLEEP_TIME=150
 
-# check status of internal and external battery
-# if both batteries have capacity lower than BAT_THRESHOLD: suspend
-while true
-do
-    if [[ "$(cat /sys/class/power_supply/BAT0/capacity)" -le "$BAT_THRESHOLD" ]]
-    then
-        if [[ "$(cat /sys/class/power_supply/BAT1/capacity)" -le "$BAT_THRESHOLD" ]]
-        then
-            notify-send.sh "battery is low" "Suspending now"
+relax() {
+    # if all good, just notity
+    CAPACITY0="$(cat /sys/class/power_supply/BAT0/capacity)"
+    CAPACITY1="$(cat /sys/class/power_supply/BAT1/capacity)"
+    notify-send.sh -u low "Battery ok." "$CAPACITY0\n$CAPACITY1"
+}
+
+dramatically_suspend () {
+    # really notify the user, then suspend
+            notify-send.sh -u high "battery is low" "Suspending now"
             echo "battery is low, suspending now"
+
+            # flicker screen using xbacklight
             brightness_bell.sh
-            sleep $SLEEP_TIME
+
+            # give time to see notification
+            sleep $DELAY
+
+            # suspend to prevent damage
             systemctl suspend
-            sleep $SLEEP_TIME
-            notify-send.sh "BATTERY IS LOW!"
-            sleep $SLEEP_TIME
-            notify-send.sh "DO SOMETHING!!!!!"
+            sleep $DELAY
+
+            # notify at wake up again, in case user wasn't present
+            notify-send.sh -u high "BATTERY IS LOW!"
+            sleep $DELAY
+            notify-send.sh -u high "DO SOMETHING!!!!!"
             sleep 1
             brightness_bell.sh
-            sleep $SLEEP_TIME
-            sleep $SLEEP_TIME
-            exit 1
+}
+# check status of internal and external battery
+# if both batteries have capacity lower than BAT_THRESHOLD
+# and system is not charging: suspend
+while true
+do
+    # are batteries charging?
+    if [[ "$(acpi | grep Charging)" ]]
+    then
+        notify-send.sh -u low "battery charging"
+    else
+        # are both batteries below $BAT_THRESHOLD % charge?
+        if [[ "$(cat /sys/class/power_supply/BAT0/capacity)" -le "$BAT_THRESHOLD"
+            && "$(cat /sys/class/power_supply/BAT1/capacity)" -le "$BAT_THRESHOLD"
+            # really not charging tho?
+            && "$(cat /sys/class/power_supply/BAT0/status)" != "Charging" ]]
+        then
+            dramatically_suspend
+        else
+            relax
         fi
     fi
 
-    # all good
-    notify-send.sh "Battery charge is ok." "I got your back"
-    sleep 300
+    # yield
+    sleep $SLEEP_TIME
+
 done
