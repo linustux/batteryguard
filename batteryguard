@@ -205,8 +205,6 @@
 
 
 # TODO: figure out how to properly use systemd units
-## help cronie out a little
-#PATH=$PATH:/home/chris/bin/scripts/bat/batteryguard
 
 echo Batteryguard has your back
 
